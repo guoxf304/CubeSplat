@@ -1,7 +1,7 @@
 inherit_from: "configs/ERP/SynPano/base_config.yaml"
 
 Dataset:
-  dataset_path: "datasets/SynPano/apartment/"
+  dataset_path: "datasets/SynPano/washroom/"
   Calibration:
     width: 1920
     height: 960

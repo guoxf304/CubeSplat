@@ -836,8 +836,8 @@ class FrontEnd(mp.Process):
                 opacity = render_pkg["opacity"]
 
                 loss_tracking = get_loss_tracking( self.config, image, depth, opacity, viewpoint, face_key=face_key )
-
-                total_loss += loss_tracking
+                if face_key == "front":
+                    total_loss += loss_tracking
                 render_pkgs[face_key] = render_pkg
 
             pose_optimizer.zero_grad()
