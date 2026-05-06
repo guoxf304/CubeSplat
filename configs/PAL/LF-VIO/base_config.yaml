@@ -1,0 +1,103 @@
+Results:
+  save_results: True
+  save_dir: "results"
+  save_trj: True
+  save_trj_kf_intv: 10
+  use_gui: True
+  eval_rendering: True
+  use_wandb: False
+
+Dataset:
+  type: 'LF-VIO'
+  sensor_type: 'monocular'
+  is_rgbd: False  # LF-VIO不是RGBD模型，没有深度信息
+  coordinate_transform: False  # PAL不需要坐标系转换
+  pcd_downsample: 64
+  pcd_downsample_init: 32
+  adaptive_pointsize: True
+  point_size: 0.01
+
+Training:
+  init_itr_num: 400
+  init_gaussian_update: 100
+  init_gaussian_reset: 500
+  init_gaussian_th: 0.005
+  init_gaussian_extent: 30
+  tracking_itr_num: 100
+  mapping_itr_num: 150
+  gaussian_update_every: 150
+  gaussian_update_offset: 50
+  gaussian_th: 0.7
+  gaussian_extent: 1.0
+  gaussian_reset: 2001
+  size_threshold: 20
+  kf_interval: 5
+  window_size: 8
+  pose_window: 3
+  edge_threshold: 2.0
+  rgb_boundary_threshold: 0.01
+
+  kf_translation: 0.08
+  kf_min_translation: 0.05
+  kf_overlap: 0.9
+  kf_cutoff: 0.3
+  prune_mode: 'slam'
+  single_thread: False
+  spherical_harmonics: False
+
+  lr:
+    cam_rot_delta: 0.003
+    cam_trans_delta: 0.001
+
+  # k-means量化参数
+  kmeans_params:
+    enabled: False
+    start_iteration: 100  # 开始量化的迭代次数
+    quantized_params: [] #['scale','rot','dc','sh']  # 要量化的参数类型
+    n_clusters: 1024      # 一般参数的聚类数量
+    n_clusters_sh: 512    # 球谐函数的聚类数量
+    n_clusters_dc: 512   # DC分量的聚类数量
+    kmeans_iters: 10      # k-means迭代次数
+    frequency: 5          # 每N个关键帧进行一次全局量化
+
+opt_params:
+  iterations: 30000
+  position_lr_init: 0.0016
+  position_lr_final: 0.0000016
+  position_lr_delay_mult: 0.01
+  position_lr_max_steps: 30000
+  feature_lr: 0.0025
+  opacity_lr: 0.05
+  scaling_lr: 0.001
+  rotation_lr: 0.001
+  percent_dense: 0.01
+  lambda_dssim: 0.2
+  densification_interval: 100
+  opacity_reset_interval: 3000
+  densify_from_iter: 500
+  densify_until_iter: 15000
+  densify_grad_threshold: 0.0002
+
+model_params:
+  sh_degree: 0
+  source_path: ""
+  model_path: ""
+  resolution: -1
+  white_background: False
+  data_device: "cuda"
+
+pipeline_params:
+  convert_SHs_python: False
+  compute_cov3D_python: False
+
+# FPS测量配置
+FPS:
+  enabled: True  # 是否启用FPS测量
+  save_fps_log: True  # 是否保存FPS日志到文件
+  log_interval: 10  # 每N帧记录一次FPS（用于减少日志量）
+
+Submap:
+  enabled: False
+  frames_per_submap: 200  # 每200帧创建一个新子图
+  submap_dir: "submaps"   # 子图保存目录（相对于save_dir）
+  save_keyframe_poses: True  # 是否保存关键帧位姿

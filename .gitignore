@@ -1,0 +1,30 @@
+# Large local data (never commit)
+datasets/
+media/
+
+# Local debug / experiments — not for GitHub
+1teaser_fig/
+360VO_convert/
+ATEplot/
+cubemap_render/
+depth_em/
+ERP_convert/
+mytools/
+results/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+env/
+
+# Editor (local preferences)
+.vscode/
+
+# Common large artifacts (adjust if you need to track weights)
+*.pt
+*.pth

@@ -1,0 +1,60 @@
+inherit_from: "configs/PAL/LF-VISLAM/base_config.yaml"
+
+Dataset:
+  dataset_path: "datasets/LF-VISLAM/IDL02_90/"
+  Calibration:
+    # fx: 256
+    # fy: 256
+    # cx_face: 256
+    # cy_face: 256
+    cx: 605.933287
+    cy: 362.393961
+    k1: 0.262383
+    k2: -0.953104
+    p1: -0.005358
+    p2: 0.002628
+    k3: 1.163314
+    width: 1280
+    height: 720
+    # widthCube: 512
+    # heightCube: 350
+    cube_face_size: 512
+    # depth_scale: 5000.0
+    distorted: False
+
+  model_type: scaramuzza
+  camera_name: pal
+  poly_parameters:
+      p0: -2.463825e+02
+      p1: 0.000000e+00
+      p2: 2.001880e-03
+      p3: -3.074460e-06
+      p4: 6.138370e-09
+  inv_poly_parameters:
+      p0: 378.706255
+      p1: 248.013259
+      p2: 9.758682
+      p3: 14.691543
+      p4: 22.412646
+      p5: 8.404425
+      p6: -1.668530
+      p7: 3.279720
+      p8: 2.380985
+      p9: -0.599038
+      p10: 0.525474
+      p11: 1.018587
+      p12: 0.289189
+      p13: 0.0
+      p14: 0.0
+      p15: 0.0
+      p16: 0.0
+      p17: 0.0
+      p18: 0.0
+      p19: 0.0
+  affine_parameters:
+      ac: 0.999993
+      ad: -0.000002
+      ae: 0.000025
+      cx: 605.933287
+      cy: 362.393961
+

@@ -1,0 +1,13 @@
+inherit_from: "configs/ERP/OmniBlender/base_config.yaml"
+
+Dataset:
+  dataset_path: "datasets/OmniBlender/fisher-hut/"
+  Calibration:
+    width: 1920
+    height: 960
+    cube_face_size: 512
+    distorted: False
+  # 可选：控制处理的帧范围
+  #start_frame: 0      # 起始帧索引（从0开始），不设置则从第0帧开始
+  #end_frame: 1000      # 结束帧索引（不包含），不设置则处理到数据集末尾
+

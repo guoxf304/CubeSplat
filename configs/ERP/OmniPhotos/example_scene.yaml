@@ -1,0 +1,14 @@
+inherit_from: "configs/ERP/OmniPhotos/base_config.yaml"
+
+Dataset:
+  dataset_path: "datasets/OmniPhotos/BeihaiPark/"
+  Calibration:
+    width: 1920  # 根据实际图像尺寸调整
+    height: 960   # 根据实际图像尺寸调整
+    cube_face_size: 512  # cubemap每个面的尺寸
+    distorted: False
+
+
+
+
+

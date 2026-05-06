@@ -1,0 +1,111 @@
+Results:
+  save_results: True
+  save_dir: "results"
+  save_trj: True
+  save_trj_kf_intv: 10
+  use_gui: True
+  eval_rendering: True
+  use_wandb: False
+
+Dataset:
+  type: 'ERP'
+  sensor_type: 'monocular'
+  is_rgbd: True  # OmniBlender是RGBD模型，有深度信息
+  coordinate_transform: False  # OmniBlender需要坐标系转换（左手到右手）
+  use_depth_prediction: True  # 是否使用深度预测模型（UniFuse），默认启用
+  pcd_downsample: 64
+  pcd_downsample_init: 32
+  adaptive_pointsize: True
+  point_size: 0.01
+  # 模型类型选择: 'depth' 使用深度模型(默认), 'mono' 使用单目模型(回退到原始配置)
+  model_type: 'depth'
+
+Training:
+  init_itr_num: 400
+  init_gaussian_update: 100
+  init_gaussian_reset: 500
+  init_gaussian_th: 0.005
+  init_gaussian_extent: 10
+  tracking_itr_num: 100
+  mapping_itr_num: 50
+  gaussian_update_every: 150
+  gaussian_update_offset: 50
+  gaussian_th: 0.7
+  gaussian_extent: 1.0
+  gaussian_reset: 2001
+  size_threshold: 20
+  kf_interval: 5
+  window_size: 8
+  pose_window: 3
+  edge_threshold: 2.0
+  rgb_boundary_threshold: 0.01
+
+  kf_translation: 0.08
+  kf_min_translation: 0.05
+  kf_overlap: 0.9
+  kf_cutoff: 0.3
+  prune_mode: 'slam'
+  single_thread: False
+  spherical_harmonics: False
+
+  lr:
+    cam_rot_delta: 0.003
+    cam_trans_delta: 0.001
+
+  # k-means量化参数
+  kmeans_params:
+    enabled: True
+    start_iteration: 100  # 开始量化的迭代次数
+    quantized_params: [] #['scale','rot','dc']  # 要量化的参数类型
+    n_clusters: 1024      # 一般参数的聚类数量
+    n_clusters_sh: 512    # 球谐函数的聚类数量
+    n_clusters_dc: 512   # DC分量的聚类数量
+    kmeans_iters: 10      # k-means迭代次数
+    frequency: 5          # 每N个关键帧进行一次全局量化
+
+opt_params:
+  iterations: 30000
+  position_lr_init: 0.0016
+  position_lr_final: 0.0000016
+  position_lr_delay_mult: 0.01
+  position_lr_max_steps: 30000
+  feature_lr: 0.0025
+  opacity_lr: 0.05
+  scaling_lr: 0.001
+  rotation_lr: 0.001
+  percent_dense: 0.01
+  lambda_dssim: 0.2
+  densification_interval: 100
+  opacity_reset_interval: 3000
+  densify_from_iter: 500
+  densify_until_iter: 15000
+  densify_grad_threshold: 0.0002
+
+model_params:
+  sh_degree: 0
+  source_path: ""
+  model_path: ""
+  resolution: -1
+  white_background: False
+  data_device: "cuda"
+
+pipeline_params:
+  convert_SHs_python: False
+  compute_cov3D_python: False
+
+DepthReplacement:
+  enabled: True
+  min_overlap_pixels: 2048
+  scale_clip: [0.3, 3.0]
+  error_threshold: 0.25
+  opacity_threshold: 0.02
+  min_depth: 0.01
+  default_scale: 1.0
+  blend_alpha: 0.5
+
+Submap:
+  enabled: False
+  frames_per_submap: 1000
+  submap_dir: "submaps"   # 子图保存目录（相对于save_dir）
+  save_keyframe_poses: True  # 是否保存关键帧位姿
+
