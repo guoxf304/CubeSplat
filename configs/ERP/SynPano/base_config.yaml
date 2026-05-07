@@ -110,3 +110,6 @@ Submap:
   submap_dir: "submaps"   # 子图保存目录（相对于save_dir）
   save_keyframe_poses: True  # 是否保存关键帧位姿
 
+Rendering:
+  extra_fov_deg: 95   # 颜色优化完成后额外保存一份此视场角的图像（render & gt），需 > 90 才能覆盖 90° 面
+

@@ -28,8 +28,10 @@ from gaussian_splatting.gaussian_renderer import render
 from gaussian_splatting.utils.image_utils import psnr
 from gaussian_splatting.utils.loss_utils import ssim
 from gaussian_splatting.utils.system_utils import mkdir_p
-from gaussian_splatting.utils.graphics_utils import getProjectionMatrix
+from gaussian_splatting.utils.graphics_utils import getProjectionMatrix, getProjectionMatrix2
 from utils.logging_utils import Log
+
+import py360convert
 
 
 def dec2binary(x, n_bits=None):
@@ -344,6 +346,114 @@ def eval_ate(frames, kf_ids, save_dir, iterations, final=False, monocular=False,
     return result
 
 
+def _render_and_save_extra_fov_image(
+    frame,
+    gaussians,
+    pipe,
+    background,
+    face_key,
+    frame_uid,
+    gt_image_full,
+    new_size,
+    new_fov_rad,
+    proj_template,
+    face_yaw_deg,
+    extra_fov_deg,
+    render_save_dir,
+    gt_save_dir,
+    dataset_is_erp,
+):
+    """临时调整相机为指定 FoV，渲染并保存当前面的扩展视场图像；
+    若数据集为 ERP，则同时通过 py360convert.e2p 从全景 GT 提取相同视向的 GT。
+    出现任何异常都仅记录日志，不会向上抛出，从而不影响主评估流程。
+    """
+    # 备份相机参数
+    orig_FoVx = frame.FoVx
+    orig_FoVy = frame.FoVy
+    orig_proj = frame.projection_matrix
+    orig_H = frame.image_height
+    orig_W = frame.image_width
+
+    try:
+        frame.FoVx = new_fov_rad
+        frame.FoVy = new_fov_rad
+        frame.image_height = int(new_size)
+        frame.image_width = int(new_size)
+        frame.projection_matrix = proj_template.to(
+            device=orig_proj.device, dtype=orig_proj.dtype
+        )
+
+        out = render(frame, gaussians, pipe, background, face_key=face_key)
+        if out is None or "render" not in out:
+            Log(
+                f"Extra FoV render returned None for face {face_key}, frame {frame_uid}",
+                tag="Eval",
+            )
+            return
+
+        rendered = torch.clamp(out["render"], 0.0, 1.0)
+        rendered_np = rendered.detach().cpu().permute(1, 2, 0).numpy()
+        rendered_uint8 = (rendered_np * 255.0).clip(0, 255).astype(np.uint8)
+        rendered_bgr = cv2.cvtColor(rendered_uint8, cv2.COLOR_RGB2BGR)
+
+        render_face_dir = os.path.join(render_save_dir, face_key)
+        render_path = os.path.join(
+            render_face_dir, f"frame_{frame_uid:06d}_render.png"
+        )
+        cv2.imwrite(render_path, rendered_bgr)
+
+        # 从 ERP 全景 GT 中按透视投影提取与渲染同向的 GT
+        if dataset_is_erp and gt_image_full is not None:
+            try:
+                if isinstance(gt_image_full, torch.Tensor):
+                    erp_np = gt_image_full.detach().cpu().permute(1, 2, 0).numpy()
+                else:
+                    erp_np = np.asarray(gt_image_full)
+                    if erp_np.ndim == 3 and erp_np.shape[0] in (1, 3) and erp_np.shape[-1] not in (1, 3):
+                        # CHW -> HWC
+                        erp_np = np.transpose(erp_np, (1, 2, 0))
+
+                erp_np = np.clip(erp_np, 0.0, 1.0).astype(np.float32)
+
+                gt95 = py360convert.e2p(
+                    erp_np,
+                    fov_deg=float(extra_fov_deg),
+                    u_deg=float(face_yaw_deg),
+                    v_deg=0.0,
+                    out_hw=(int(new_size), int(new_size)),
+                    in_rot_deg=0,
+                    mode='bicubic',
+                )
+
+                gt95 = np.clip(gt95, 0.0, 1.0)
+                gt95_uint8 = (gt95 * 255.0).clip(0, 255).astype(np.uint8)
+                gt95_bgr = cv2.cvtColor(gt95_uint8, cv2.COLOR_RGB2BGR)
+                gt_face_dir = os.path.join(gt_save_dir, face_key)
+                gt_path = os.path.join(
+                    gt_face_dir, f"frame_{frame_uid:06d}_gt.png"
+                )
+                cv2.imwrite(gt_path, gt95_bgr)
+            except Exception as e:
+                Log(
+                    f"Failed to extract extra FoV GT for face {face_key}, "
+                    f"frame {frame_uid}: {e}",
+                    tag="Eval",
+                )
+    except Exception as e:
+        Log(
+            f"Failed to render extra FoV image for face {face_key}, "
+            f"frame {frame_uid}: {e}",
+            tag="Eval",
+        )
+    finally:
+        # 恢复相机参数，避免影响后续渲染/评估
+        frame.FoVx = orig_FoVx
+        frame.FoVy = orig_FoVy
+        frame.projection_matrix = orig_proj
+        frame.image_height = orig_H
+        frame.image_width = orig_W
+
+
 def eval_rendering(
     frames,
     gaussians,
@@ -354,6 +464,7 @@ def eval_rendering(
     kf_indices,
     iteration="final",
     cube=None,
+    extra_fov_deg: float = None,
 ):
     """
     评估渲染质量（cubemap模式，每个面分别计算指标）
@@ -367,6 +478,10 @@ def eval_rendering(
         background: 背景颜色
         kf_indices: 关键帧索引列表
         iteration: 迭代标识（"before_opt", "after_opt", "final"）
+        extra_fov_deg: 当 iteration == "after_opt" 时，额外渲染并保存此视场角的图像。
+                       焦距与 90° 立方体面相同（fx = face_size/2），新分辨率
+                       new_size = round(2 · fx · tan(extra_fov_deg/2))。
+                       为 None 或 <= 0 时跳过。
     """
     # 处理 frames 可能是字典或列表的情况
     if isinstance(frames, dict):
@@ -408,6 +523,80 @@ def eval_rendering(
             gt_face_dir = os.path.join(gt_save_dir, face_key)
             mkdir_p(render_face_dir)
             mkdir_p(gt_face_dir)
+
+    # 额外视场角（如 95°）的渲染配置
+    # 焦距 fx_face 与 90° 面相同，仅放大输出分辨率以覆盖更大视场
+    enable_extra_fov = (
+        save_images
+        and extra_fov_deg is not None
+        and float(extra_fov_deg) > 0
+    )
+    extra_render_save_dir = None
+    extra_gt_save_dir = None
+    extra_new_size = None
+    extra_fov_rad = None
+    extra_proj_template = None
+    extra_dataset_is_erp = False
+    # 与 py360convert.e2c 输出方向保持一致的 face -> yaw 映射
+    FACE_YAW_DEG = {
+        'front': 0.0,
+        'right': 90.0,
+        'back': 180.0,
+        'left': -90.0,
+    }
+    if enable_extra_fov:
+        if float(extra_fov_deg) <= 90.0:
+            Log(
+                f"extra_fov_deg={extra_fov_deg} <= 90, skipping extra FoV rendering "
+                f"(would duplicate the standard 90° outputs).",
+                tag="Eval",
+            )
+            enable_extra_fov = False
+        else:
+            try:
+                fx_face = float(getattr(first_frame, "fx"))
+            except Exception:
+                fx_face = float(first_frame.image_width) / 2.0
+            extra_fov_rad = math.radians(float(extra_fov_deg))
+            extra_new_size = int(round(2.0 * fx_face * math.tan(extra_fov_rad / 2.0)))
+            if extra_new_size < 1:
+                Log(
+                    f"Computed extra_new_size={extra_new_size} is invalid, skip extra FoV rendering.",
+                    tag="Eval",
+                )
+                enable_extra_fov = False
+            else:
+                deg_tag = int(round(float(extra_fov_deg)))
+                extra_render_save_dir = os.path.join(save_dir, f"render_fov{deg_tag}")
+                extra_gt_save_dir = os.path.join(save_dir, f"gt_fov{deg_tag}")
+                mkdir_p(extra_render_save_dir)
+                mkdir_p(extra_gt_save_dir)
+                for face_key in faces:
+                    mkdir_p(os.path.join(extra_render_save_dir, face_key))
+                    mkdir_p(os.path.join(extra_gt_save_dir, face_key))
+
+                # 预构建投影矩阵模板（与 Camera.init_from_gui 一致需要 transpose）
+                extra_proj_template = getProjectionMatrix2(
+                    znear=0.01,
+                    zfar=100.0,
+                    fx=fx_face,
+                    fy=fx_face,
+                    cx=extra_new_size / 2.0,
+                    cy=extra_new_size / 2.0,
+                    W=extra_new_size,
+                    H=extra_new_size,
+                ).transpose(0, 1)
+
+                extra_dataset_is_erp = (
+                    getattr(dataset, "dataset_type", None) == "ERP"
+                )
+
+                Log(
+                    f"Extra FoV rendering enabled: fov={extra_fov_deg}°, "
+                    f"new_size={extra_new_size}, save to render_fov{deg_tag}/ and gt_fov{deg_tag}/. "
+                    f"GT extraction from ERP: {extra_dataset_is_erp}",
+                    tag="Eval",
+                )
 
     # 确定结束索引
     if iteration == "final" or iteration == "before_opt" or iteration == "after_opt":
@@ -518,6 +707,26 @@ def eval_rendering(
                     "lpips": float(lpips_value)
                 }
                 face_frame_metrics[face_key].append(frame_metric)
+
+                # 额外渲染并保存指定 FoV（如 95°）的图像
+                if enable_extra_fov and face_key in FACE_YAW_DEG:
+                    _render_and_save_extra_fov_image(
+                        frame=frame,
+                        gaussians=gaussians,
+                        pipe=pipe,
+                        background=background,
+                        face_key=face_key,
+                        frame_uid=frame_uid,
+                        gt_image_full=gt_image_full,
+                        new_size=extra_new_size,
+                        new_fov_rad=extra_fov_rad,
+                        proj_template=extra_proj_template,
+                        face_yaw_deg=FACE_YAW_DEG[face_key],
+                        extra_fov_deg=float(extra_fov_deg),
+                        render_save_dir=extra_render_save_dir,
+                        gt_save_dir=extra_gt_save_dir,
+                        dataset_is_erp=extra_dataset_is_erp,
+                    )
     
     # 计算每个面的平均指标
     output = dict()

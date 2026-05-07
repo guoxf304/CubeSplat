@@ -309,6 +309,7 @@ class SLAM:
                     break
 
             # 评估优化后的渲染结果（cubemap模型，每个面分别计算指标）
+            extra_fov_deg = self.config.get("Rendering", {}).get("extra_fov_deg", 95)
             rendering_result_after = eval_rendering(
                 self.frontend.cameras,
                 self.gaussians,
@@ -318,7 +319,8 @@ class SLAM:
                 self.background,
                 kf_indices=kf_indices,
                 iteration="after_opt",
-                cube=self.Cube
+                cube=self.Cube,
+                extra_fov_deg=extra_fov_deg,
             )
             
             # 添加优化后的数据
