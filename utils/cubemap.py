@@ -263,6 +263,8 @@ class ERPToCube:
     def __init__(self, dataset):
         self.dataset = dataset
         self.face_size = dataset.face_size
+        self.default_face_w = int(getattr(dataset, "train_face_size", self.face_size))
+        self.default_fov_deg = float(getattr(dataset, "erp_face_fov_deg_train", 95.0))
         self.rotation = self.get_all_face_rotation()
 
     def get_all_face_rotation(self):
@@ -307,17 +309,29 @@ class ERPToCube:
         else:
             raise ValueError(f"Invalid axis '{axis}', must be 'x', 'y', or 'z'.")
         return R
-    def convert(self, ERP_tensor):
+    def convert(self, ERP_tensor, fov_deg=None, face_w=None):
         if ERP_tensor is None:
             cube_faces = {}
             face_names = ['front', 'back', 'left', 'right', 'top', 'bottom']
+            target_face_w = self.default_face_w if face_w is None else int(face_w)
             for face in face_names:
-                cube_faces[face] = torch.zeros(3, self.face_size, self.face_size)
+                cube_faces[face] = torch.zeros(3, target_face_w, target_face_w)
             return cube_faces
 
         device = ERP_tensor.device
         ERP_img = ERP_tensor.permute(1, 2, 0).cpu().numpy()
-        c_img = py360convert.e2c(ERP_img, face_w=self.face_size, mode='bicubic', cube_format='dict')
+        target_fov = self.default_fov_deg if fov_deg is None else float(fov_deg)
+        target_face_w = self.default_face_w if face_w is None else int(face_w)
+        try:
+            c_img = py360convert.e2c(
+                ERP_img,
+                face_w=target_face_w,
+                mode='bicubic',
+                cube_format='dict',
+                fov_deg=target_fov,
+            )
+        except TypeError:
+            c_img = py360convert.e2c(ERP_img, face_w=target_face_w, mode='bicubic', cube_format='dict')
 
         cube_faces = {
             'front': torch.from_numpy(c_img['F']).permute(2, 0, 1).float().to(device),

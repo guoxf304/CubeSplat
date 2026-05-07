@@ -354,6 +354,11 @@ def eval_rendering(
     kf_indices,
     iteration="final",
     cube=None,
+    output_subdir=None,
+    disable_erp_shift_for_gt=False,
+    render_yaw_comp_deg=0.0,
+    target_faces=None,
+    eval_metric_fov_deg=None,
 ):
     """
     评估渲染质量（cubemap模式，每个面分别计算指标）
@@ -366,8 +371,39 @@ def eval_rendering(
         pipe: 渲染管道参数
         background: 背景颜色
         kf_indices: 关键帧索引列表
-        iteration: 迭代标识（"before_opt", "after_opt", "final"）
+        iteration: 迭代标识（"before_opt", "after_opt", "after_opt_no_shift", "final"）
     """
+    def _yaw_rotation_matrix_deg(yaw_deg, device, dtype):
+        yaw_rad = math.radians(float(yaw_deg))
+        c = math.cos(yaw_rad)
+        s = math.sin(yaw_rad)
+        return torch.tensor(
+            [[c, 0.0, s], [0.0, 1.0, 0.0], [-s, 0.0, c]],
+            device=device,
+            dtype=dtype,
+        )
+
+    def _build_transparent_erp_from_faces(face_dict_rgb, face_order):
+        first_face = face_dict_rgb[face_order[0]]
+        face_h, face_w = first_face.shape[:2]
+        canvas_h = face_h * 2
+        canvas_w = face_w * 4
+        erp_rgba = np.zeros((canvas_h, canvas_w, 4), dtype=np.uint8)
+
+        strip_rgb = np.concatenate([face_dict_rgb[key] for key in face_order], axis=1)
+        y0 = canvas_h // 4
+        y1 = y0 + face_h
+        erp_rgba[y0:y1, :, :3] = strip_rgb
+        erp_rgba[y0:y1, :, 3] = 255
+        return erp_rgba
+
+    def _center_crop_square(chw_tensor, side):
+        _, h, w = chw_tensor.shape
+        crop_side = min(int(side), h, w)
+        y0 = (h - crop_side) // 2
+        x0 = (w - crop_side) // 2
+        return chw_tensor[:, y0:y0 + crop_side, x0:x0 + crop_side]
+
     # 处理 frames 可能是字典或列表的情况
     if isinstance(frames, dict):
         # 如果是字典，获取所有帧索引并排序
@@ -386,7 +422,13 @@ def eval_rendering(
             return {}
         first_frame = frames[0]
     
-    faces = first_frame.keep_faces
+    faces = list(first_frame.keep_faces)
+    if target_faces is not None:
+        target_faces_set = set(target_faces)
+        faces = [face for face in faces if face in target_faces_set]
+        if len(faces) == 0:
+            Log("Warning: target_faces has no overlap with available faces, skip rendering evaluation", tag="Eval")
+            return {}
 
     # 为每个面初始化指标数组
     face_metrics = {face: {"psnr": [], "ssim": [], "lpips": []} for face in faces}
@@ -394,23 +436,57 @@ def eval_rendering(
     face_frame_metrics = {face: [] for face in faces}
     cal_lpips = LearnedPerceptualImagePatchSimilarity(net_type="alex", normalize=True).to("cuda")
     
-    # 如果是after_opt，创建图像保存目录
-    save_images = (iteration == "after_opt")
+    dataset_type = getattr(dataset, "dataset_type", None)
+    train_fov_deg = float(getattr(dataset, "erp_face_fov_deg_train", 95.0)) if dataset_type == "ERP" else None
+    metric_fov_deg = (
+        float(eval_metric_fov_deg)
+        if eval_metric_fov_deg is not None
+        else float(getattr(dataset, "erp_face_fov_deg_eval_metric", 90.0)) if dataset_type == "ERP" else None
+    )
+    metric_face_size = int(getattr(dataset, "cube_face_size_base", getattr(dataset, "face_size", 512))) if dataset_type == "ERP" else None
+    train_face_size = int(getattr(dataset, "train_face_size", getattr(dataset, "face_size", 512))) if dataset_type == "ERP" else None
+    # 如果是优化后评估，创建图像保存目录
+    save_images = (iteration == "after_opt" or iteration == "after_opt_no_shift")
+    should_use_metric_fov = (dataset_type == "ERP" and metric_fov_deg is not None and metric_face_size is not None)
+    save_extra_train_fov = (
+        dataset_type == "ERP"
+        and save_images
+        and should_use_metric_fov
+        and train_face_size is not None
+        and train_face_size != metric_face_size
+    )
+    save_root_dir = os.path.join(save_dir, output_subdir) if output_subdir else save_dir
     if save_images:
         # 创建render和gt两个文件夹
-        render_save_dir = os.path.join(save_dir, "render")
-        gt_save_dir = os.path.join(save_dir, "gt")
+        render_save_dir = os.path.join(save_root_dir, "render")
+        gt_save_dir = os.path.join(save_root_dir, "gt")
+        erp_render_save_dir = os.path.join(save_root_dir, "erp_render")
+        erp_gt_save_dir = os.path.join(save_root_dir, "erp_gt")
         mkdir_p(render_save_dir)
         mkdir_p(gt_save_dir)
+        mkdir_p(erp_render_save_dir)
+        mkdir_p(erp_gt_save_dir)
+        if save_extra_train_fov:
+            render_95_save_dir = os.path.join(save_root_dir, "render_95")
+            gt_95_save_dir = os.path.join(save_root_dir, "gt_95")
+            erp_render_95_save_dir = os.path.join(save_root_dir, "erp_render_95")
+            erp_gt_95_save_dir = os.path.join(save_root_dir, "erp_gt_95")
+            mkdir_p(render_95_save_dir)
+            mkdir_p(gt_95_save_dir)
+            mkdir_p(erp_render_95_save_dir)
+            mkdir_p(erp_gt_95_save_dir)
         # 为每个面在render和gt文件夹下创建子文件夹
         for face_key in faces:
             render_face_dir = os.path.join(render_save_dir, face_key)
             gt_face_dir = os.path.join(gt_save_dir, face_key)
             mkdir_p(render_face_dir)
             mkdir_p(gt_face_dir)
+            if save_extra_train_fov:
+                mkdir_p(os.path.join(render_95_save_dir, face_key))
+                mkdir_p(os.path.join(gt_95_save_dir, face_key))
 
     # 确定结束索引
-    if iteration == "final" or iteration == "before_opt" or iteration == "after_opt":
+    if iteration in ["final", "before_opt", "after_opt", "after_opt_no_shift"]:
         end_idx = all_frame_indices[-1] if all_frame_indices else 0
     else:
         # 如果 iteration 是整数，使用它作为结束索引
@@ -423,101 +499,181 @@ def eval_rendering(
     # 确保 end_idx 是整数类型
     end_idx = int(end_idx)
     
-    # 遍历所有帧索引
-    for idx in all_frame_indices:
-        # 跳过超过结束索引的帧
-        if idx > end_idx:
-            break
-        # 跳过关键帧
-        if idx in kf_indices:
-            continue
-        # 按间隔采样
-        if (idx - all_frame_indices[0]) % 5 != 0:
-            continue
-        
-        # 获取帧
-        if isinstance(frames, dict):
-            if idx not in frames:
+    original_erp_shift_enabled = getattr(dataset, "erp_shift_enabled", None)
+    yaw_comp = float(render_yaw_comp_deg)
+
+    try:
+        if disable_erp_shift_for_gt and original_erp_shift_enabled is not None:
+            dataset.erp_shift_enabled = False
+        elif disable_erp_shift_for_gt and original_erp_shift_enabled is None:
+            Log("disable_erp_shift_for_gt=True but dataset has no erp_shift_enabled, fallback to original behavior", tag="Eval")
+
+        # 遍历所有帧索引
+        for idx in all_frame_indices:
+            # 跳过超过结束索引的帧
+            if idx > end_idx:
+                break
+            # 跳过关键帧
+            if idx in kf_indices:
                 continue
-            frame = frames[idx]
-        else:
-            if idx >= len(frames):
+            # 按间隔采样
+            if (idx - all_frame_indices[0]) % 5 != 0:
                 continue
-            frame = frames[idx]
-        
-        frame_uid = frame.uid if hasattr(frame, "uid") else idx
-
-        # 从数据集读取GT，并转换为cubemap
-        try:
-            gt_image_full = dataset[frame_uid][0]
-            cubemap_gt = cube.convert(gt_image_full)
-        except Exception:
-            continue
-        if cubemap_gt is None or not isinstance(cubemap_gt, dict):
-            continue
-
-        # 对每个面分别计算指标
-        for face_key in faces:
-            if face_key not in cubemap_gt:
-                continue
-
-            # 获取该面的真实图像，并确保范围在[0,1]
-            gt_image = cubemap_gt[face_key]
-            if isinstance(gt_image, np.ndarray):
-                gt_image = torch.from_numpy(gt_image)
-            gt_image = gt_image.to(device=background.device if isinstance(background, torch.Tensor) else "cuda", dtype=torch.float32)
-
-            gt_image = torch.clamp(gt_image, 0.0, 1.0)
-
-            rendering = render(frame, gaussians, pipe, background, face_key=face_key)["render"]
-            image = torch.clamp(rendering, 0.0, 1.0)
-
-            mask = gt_image > 0
-            psnr_score = psnr((image[mask]).unsqueeze(0), (gt_image[mask]).unsqueeze(0))
-            ssim_score = ssim((image).unsqueeze(0), (gt_image).unsqueeze(0))
-            lpips_score = cal_lpips(image.unsqueeze(0), gt_image.unsqueeze(0))
-
-            psnr_value = psnr_score.item()
-            ssim_value = ssim_score.item()
-            lpips_value = lpips_score.item()
-
-            face_metrics[face_key]["psnr"].append(psnr_value)
-            face_metrics[face_key]["ssim"].append(ssim_value)
-            face_metrics[face_key]["lpips"].append(lpips_value)
             
-            # 如果是after_opt，保存图像和记录每帧指标
-            if save_images:
-                # 保存渲染图像和GT图像
-                # 将tensor转换为numpy: (C, H, W) -> (H, W, C)
-                # 使用detach()分离计算图，避免梯度计算
-                image_np = image.detach().cpu().permute(1, 2, 0).numpy()
-                gt_image_np = gt_image.detach().cpu().permute(1, 2, 0).numpy()
-                
-                # 转换为uint8格式
-                image_uint8 = (image_np * 255.0).clip(0, 255).astype(np.uint8)
-                gt_image_uint8 = (gt_image_np * 255.0).clip(0, 255).astype(np.uint8)
-                
-                # 转换为BGR格式（cv2使用BGR）
-                image_bgr = cv2.cvtColor(image_uint8, cv2.COLOR_RGB2BGR)
-                gt_image_bgr = cv2.cvtColor(gt_image_uint8, cv2.COLOR_RGB2BGR)
-                
-                # 保存图像：渲染图像保存到render文件夹，GT图像保存到gt文件夹
-                render_face_dir = os.path.join(render_save_dir, face_key)
-                gt_face_dir = os.path.join(gt_save_dir, face_key)
-                render_path = os.path.join(render_face_dir, f"frame_{frame_uid:06d}_render.png")
-                gt_path = os.path.join(gt_face_dir, f"frame_{frame_uid:06d}_gt.png")
-                cv2.imwrite(render_path, image_bgr)
-                cv2.imwrite(gt_path, gt_image_bgr)
-                
-                # 记录该帧的指标
-                frame_metric = {
-                    "frame_uid": int(frame_uid),
-                    "frame_idx": int(idx),
-                    "psnr": float(psnr_value),
-                    "ssim": float(ssim_value),
-                    "lpips": float(lpips_value)
-                }
-                face_frame_metrics[face_key].append(frame_metric)
+            # 获取帧
+            if isinstance(frames, dict):
+                if idx not in frames:
+                    continue
+                frame = frames[idx]
+            else:
+                if idx >= len(frames):
+                    continue
+                frame = frames[idx]
+            
+            frame_uid = frame.uid if hasattr(frame, "uid") else idx
+
+            # 从数据集读取GT，并转换为cubemap
+            try:
+                gt_image_full = dataset[frame_uid][0]
+                if dataset_type == "ERP":
+                    cubemap_gt_train = cube.convert(
+                        gt_image_full,
+                        fov_deg=train_fov_deg,
+                        face_w=train_face_size,
+                    )
+                else:
+                    cubemap_gt_train = cube.convert(gt_image_full)
+            except Exception:
+                continue
+            if cubemap_gt_train is None or not isinstance(cubemap_gt_train, dict):
+                continue
+
+            # 渲染时临时进行yaw补偿（仅评估期间生效）
+            orig_R = None
+            orig_T = None
+            if abs(yaw_comp) > 1e-8:
+                try:
+                    orig_R = frame.R.clone()
+                    orig_T = frame.T.clone()
+                    yaw_R = _yaw_rotation_matrix_deg(yaw_comp, device=frame.R.device, dtype=frame.R.dtype)
+                    frame.R = yaw_R @ frame.R
+                    frame.T = yaw_R @ frame.T
+                except Exception as e:
+                    Log(f"Warning: failed to apply yaw compensation ({yaw_comp} deg) on frame {frame_uid}: {e}", tag="Eval")
+                    orig_R = None
+                    orig_T = None
+
+            try:
+                per_frame_render_faces = {}
+                per_frame_gt_faces = {}
+                per_frame_render_faces_95 = {}
+                per_frame_gt_faces_95 = {}
+                # 对每个面分别计算指标
+                for face_key in faces:
+                    if face_key not in cubemap_gt_train:
+                        continue
+
+                    gt_train = cubemap_gt_train[face_key]
+                    if isinstance(gt_train, np.ndarray):
+                        gt_train = torch.from_numpy(gt_train)
+                    gt_train = gt_train.to(device=background.device if isinstance(background, torch.Tensor) else "cuda", dtype=torch.float32)
+                    gt_train = torch.clamp(gt_train, 0.0, 1.0)
+
+                    rendering_train = render(frame, gaussians, pipe, background, face_key=face_key)["render"]
+                    rendering_train = torch.clamp(rendering_train, 0.0, 1.0)
+
+                    if should_use_metric_fov:
+                        gt_image = _center_crop_square(gt_train, metric_face_size)
+                        image = _center_crop_square(rendering_train, metric_face_size)
+                    else:
+                        gt_image = gt_train
+                        image = rendering_train
+
+                    mask = gt_image > 0
+                    psnr_score = psnr((image[mask]).unsqueeze(0), (gt_image[mask]).unsqueeze(0))
+                    ssim_score = ssim((image).unsqueeze(0), (gt_image).unsqueeze(0))
+                    lpips_score = cal_lpips(image.unsqueeze(0), gt_image.unsqueeze(0))
+
+                    psnr_value = psnr_score.item()
+                    ssim_value = ssim_score.item()
+                    lpips_value = lpips_score.item()
+
+                    face_metrics[face_key]["psnr"].append(psnr_value)
+                    face_metrics[face_key]["ssim"].append(ssim_value)
+                    face_metrics[face_key]["lpips"].append(lpips_value)
+                    
+                    # 如果是优化后评估，保存图像和记录每帧指标
+                    if save_images:
+                        image_np = image.detach().cpu().permute(1, 2, 0).numpy()
+                        gt_image_np = gt_image.detach().cpu().permute(1, 2, 0).numpy()
+                        
+                        image_uint8 = (image_np * 255.0).clip(0, 255).astype(np.uint8)
+                        gt_image_uint8 = (gt_image_np * 255.0).clip(0, 255).astype(np.uint8)
+                        
+                        image_bgr = cv2.cvtColor(image_uint8, cv2.COLOR_RGB2BGR)
+                        gt_image_bgr = cv2.cvtColor(gt_image_uint8, cv2.COLOR_RGB2BGR)
+                        
+                        render_face_dir = os.path.join(render_save_dir, face_key)
+                        gt_face_dir = os.path.join(gt_save_dir, face_key)
+                        render_path = os.path.join(render_face_dir, f"frame_{frame_uid:06d}_render.png")
+                        gt_path = os.path.join(gt_face_dir, f"frame_{frame_uid:06d}_gt.png")
+                        cv2.imwrite(render_path, image_bgr)
+                        cv2.imwrite(gt_path, gt_image_bgr)
+
+                        per_frame_render_faces[face_key] = image_uint8
+                        per_frame_gt_faces[face_key] = gt_image_uint8
+
+                        if save_extra_train_fov:
+                            render95_np = rendering_train.detach().cpu().permute(1, 2, 0).numpy()
+                            gt95_np = gt_train.detach().cpu().permute(1, 2, 0).numpy()
+                            render95_uint8 = (render95_np * 255.0).clip(0, 255).astype(np.uint8)
+                            gt95_uint8 = (gt95_np * 255.0).clip(0, 255).astype(np.uint8)
+                            render95_bgr = cv2.cvtColor(render95_uint8, cv2.COLOR_RGB2BGR)
+                            gt95_bgr = cv2.cvtColor(gt95_uint8, cv2.COLOR_RGB2BGR)
+
+                            render95_face_dir = os.path.join(render_95_save_dir, face_key)
+                            gt95_face_dir = os.path.join(gt_95_save_dir, face_key)
+                            render95_path = os.path.join(render95_face_dir, f"frame_{frame_uid:06d}_render.png")
+                            gt95_path = os.path.join(gt95_face_dir, f"frame_{frame_uid:06d}_gt.png")
+                            cv2.imwrite(render95_path, render95_bgr)
+                            cv2.imwrite(gt95_path, gt95_bgr)
+
+                            per_frame_render_faces_95[face_key] = render95_uint8
+                            per_frame_gt_faces_95[face_key] = gt95_uint8
+                        
+                        frame_metric = {
+                            "frame_uid": int(frame_uid),
+                            "frame_idx": int(idx),
+                            "psnr": float(psnr_value),
+                            "ssim": float(ssim_value),
+                            "lpips": float(lpips_value)
+                        }
+                        face_frame_metrics[face_key].append(frame_metric)
+
+                if save_images:
+                    erp_face_order = ["left", "front", "right", "back"]
+                    if all(face in per_frame_render_faces for face in erp_face_order) and all(face in per_frame_gt_faces for face in erp_face_order):
+                        erp_render_rgba = _build_transparent_erp_from_faces(per_frame_render_faces, erp_face_order)
+                        erp_gt_rgba = _build_transparent_erp_from_faces(per_frame_gt_faces, erp_face_order)
+                        erp_render_path = os.path.join(erp_render_save_dir, f"frame_{frame_uid:06d}_erp.png")
+                        erp_gt_path = os.path.join(erp_gt_save_dir, f"frame_{frame_uid:06d}_erp.png")
+                        cv2.imwrite(erp_render_path, cv2.cvtColor(erp_render_rgba, cv2.COLOR_RGBA2BGRA))
+                        cv2.imwrite(erp_gt_path, cv2.cvtColor(erp_gt_rgba, cv2.COLOR_RGBA2BGRA))
+                    if save_extra_train_fov:
+                        if all(face in per_frame_render_faces_95 for face in erp_face_order) and all(face in per_frame_gt_faces_95 for face in erp_face_order):
+                            erp_render_95_rgba = _build_transparent_erp_from_faces(per_frame_render_faces_95, erp_face_order)
+                            erp_gt_95_rgba = _build_transparent_erp_from_faces(per_frame_gt_faces_95, erp_face_order)
+                            erp_render_95_path = os.path.join(erp_render_95_save_dir, f"frame_{frame_uid:06d}_erp.png")
+                            erp_gt_95_path = os.path.join(erp_gt_95_save_dir, f"frame_{frame_uid:06d}_erp.png")
+                            cv2.imwrite(erp_render_95_path, cv2.cvtColor(erp_render_95_rgba, cv2.COLOR_RGBA2BGRA))
+                            cv2.imwrite(erp_gt_95_path, cv2.cvtColor(erp_gt_95_rgba, cv2.COLOR_RGBA2BGRA))
+            finally:
+                if orig_R is not None and orig_T is not None:
+                    frame.R = orig_R
+                    frame.T = orig_T
+    finally:
+        if disable_erp_shift_for_gt and original_erp_shift_enabled is not None:
+            dataset.erp_shift_enabled = original_erp_shift_enabled
     
     # 计算每个面的平均指标
     output = dict()
@@ -547,7 +703,7 @@ def eval_rendering(
             log_msg += f'  {face_key}: psnr={output[f"{face_key}_psnr"]:.4f}, ssim={output[f"{face_key}_ssim"]:.4f}, lpips={output[f"{face_key}_lpips"]:.4f}\n'
     Log(log_msg, tag="Eval")
 
-    psnr_save_dir = os.path.join(save_dir, "psnr", str(iteration))
+    psnr_save_dir = os.path.join(save_root_dir, "psnr", str(iteration))
     mkdir_p(psnr_save_dir)
 
     json.dump(

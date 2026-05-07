@@ -20,6 +20,10 @@ Dataset:
   point_size: 0.01
   # 模型类型选择: 'depth' 使用深度模型(默认), 'mono' 使用单目模型(回退到原始配置)
   model_type: 'depth'
+  erp_shift_enabled: True
+  erp_shift_deg: 0
+  erp_face_fov_deg_train: 90
+  erp_face_fov_deg_eval_metric: 90.0
 
 Training:
   init_itr_num: 400

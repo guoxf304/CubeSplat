@@ -57,6 +57,15 @@ class MonocularDataset(BaseDataset):
             .permute(2, 0, 1)
             .to(device=self.device, dtype=self.dtype)
         )
+
+        # ERP图像在经纬度投影下左右边界周期连续，按角度转换为像素后做水平循环平移
+        if getattr(self, "dataset_type", None) == "ERP" and getattr(self, "erp_shift_enabled", True):
+            shift_deg = float(getattr(self, "erp_shift_deg", 45.0))
+            width = image.shape[-1]
+            shift_px = int(round((shift_deg / 360.0) * width))
+            if shift_px != 0:
+                image = torch.roll(image, shifts=shift_px, dims=-1)
+
         pose = torch.from_numpy(pose).to(device=self.device) # cuda
         return image, None, pose, color_path
 
@@ -367,18 +376,26 @@ class ERPDataset(MonocularDataset):
         # 数据集类型标记
         self.dataset_type = "ERP"
 
-        self.face_size = self.calibration["cube_face_size"]
-        self.fx = self.face_size / 2
-        self.fy = self.face_size / 2
-        self.wCube = self.face_size
-        self.hCube = self.face_size
-        self.cx_face = self.face_size / 2
-        self.cy_face = self.face_size / 2
+        self.cube_face_size_base = int(self.calibration["cube_face_size"])
+        self.erp_face_fov_deg_train = float(config["Dataset"].get("erp_face_fov_deg_train", 95.0))
+        self.erp_face_fov_deg_eval_metric = float(config["Dataset"].get("erp_face_fov_deg_eval_metric", 90.0))
+        self.f_base = self.cube_face_size_base / 2.0
+        train_fov_rad = np.deg2rad(self.erp_face_fov_deg_train)
+        self.train_face_size = int(round(2.0 * self.f_base * np.tan(train_fov_rad / 2.0)))
+        self.face_size = self.train_face_size
+        self.fx = self.f_base
+        self.fy = self.f_base
+        self.wCube = self.train_face_size
+        self.hCube = self.train_face_size
+        self.cx_face = self.wCube / 2.0
+        self.cy_face = self.hCube / 2.0
         self.width = self.calibration["width"]
         self.height = self.calibration["height"]
         self.fovx = focal2fov(self.fx, self.wCube)
         self.fovy = focal2fov(self.fy, self.wCube)
         self.has_depth = True if "depth_scale" in self.calibration.keys() else False
+        self.erp_shift_enabled = config["Dataset"].get("erp_shift_enabled", True)
+        self.erp_shift_deg = float(config["Dataset"].get("erp_shift_deg", 45.0))
 
         # 根据数据集类型选择不同的parser
         dataset_type = config["Dataset"].get("parser_type", "ERP")  # 默认使用ERPParser

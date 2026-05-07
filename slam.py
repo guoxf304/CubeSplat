@@ -348,6 +348,9 @@ class SLAM:
                     f.write("=" * 50 + "\n")
                     f.write("Rendering Quality Evaluation\n")
                     f.write("=" * 50 + "\n\n")
+                    if getattr(self.dataset, "dataset_type", None) == "ERP":
+                        eval_fov_deg = float(getattr(self.dataset, "erp_face_fov_deg_eval_metric", 90.0))
+                        f.write(f"Note: Metrics are computed on {eval_fov_deg:.1f} deg FoV.\n\n")
                     
                     # 优化前的评估结果
                     f.write("-" * 50 + "\n")
