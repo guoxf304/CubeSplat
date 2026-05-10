@@ -3,10 +3,10 @@ Results:
   save_dir: "results"
   save_trj: True
   save_trj_kf_intv: 10
-  use_gui: True
-  eval_rendering: True
+  use_gui: False
+  eval_rendering: False
   use_wandb: False
-  make_video: True
+  make_video: False
 
 Dataset:
   type: 'ERP'
@@ -27,7 +27,7 @@ Training:
   init_gaussian_reset: 500
   init_gaussian_th: 0.005
   init_gaussian_extent: 10
-  tracking_itr_num: 100
+  tracking_itr_num: 30
   mapping_itr_num: 50
   gaussian_update_every: 150
   gaussian_update_offset: 50
