@@ -1,4 +1,4 @@
-name: cubesplat-repro
+name: cubesplat
 channels:
   - conda-forge
 dependencies:

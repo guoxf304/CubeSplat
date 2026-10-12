@@ -33,8 +33,8 @@ reusing an existing MonoGS installation. The following commands recreate the
 final validated dependency set and its checks:
 
 ```bash
-conda create -n cubesplat-repro python=3.9.25 pip=24.3.1 -y
-conda activate cubesplat-repro
+conda create -n cubesplat python=3.9.25 pip=24.3.1 -y
+conda activate cubesplat
 python -m pip install -r requirements.txt
 
 export CUDA_HOME=/usr/local/cuda-11.8
