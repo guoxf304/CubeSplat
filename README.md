@@ -5,9 +5,13 @@
   Xiangfei Guo · Hao Shi · Yufan Zhang · Zhonghua Yi · Yongqi Mao · Xiaoting Yin · Kaiwei Wang
 </p>
 
+<p align="center"><strong>🎉 Accepted to ECCV 2026!</strong></p>
+
 <p align="center">
-  <a href="https://arxiv.org/abs/2609.21347"><img src="https://img.shields.io/badge/arXiv-Paper-b31b1b?logo=arxiv" alt="Paper"></a>
+  <a href="https://link.springer.com/chapter/10.1007/978-3-032-37255-0_12"><img src="https://img.shields.io/badge/ECCV_2026-Paper-4C7A9F?logo=springer" alt="ECCV 2026 paper on Springer"></a>
+  <a href="https://arxiv.org/abs/2609.21347"><img src="https://img.shields.io/badge/arXiv-Preprint-b31b1b?logo=arxiv" alt="arXiv preprint"></a>
   <a href="https://github.com/guoxf304/CubeSplat"><img src="https://img.shields.io/badge/GitHub-Code-181717?logo=github" alt="Code"></a>
+  <a href="https://www.youtube.com/watch?v=7ZAjwrDWoHw"><img src="https://img.shields.io/badge/YouTube-Demo-FF0000?logo=youtube" alt="YouTube demo"></a>
   <a href="https://github.com/guoxf304/SynPano-Dataset"><img src="https://img.shields.io/badge/SynPano-Dataset-0078D4?logo=github" alt="SynPano dataset"></a>
 </p>
 
@@ -16,10 +20,12 @@
 ## 🧩 Pipeline
 
 <p align="center">
-  <img src="assets/pipeline.svg" width="100%" alt="Placeholder for the Cube-Splat paper pipeline figure">
+  <img src="assets/fig2.pipeline.jpg" width="100%" alt="Cube-Splat pipeline: cubemap factorization, adjoint-consistent pose tracking, and Gaussian mapping">
 </p>
 
-<!-- Replace assets/pipeline.svg with the paper figure, or upload assets/pipeline.png and update the image source above. -->
+## 🎬 Demo
+
+[▶️ Watch on YouTube](https://www.youtube.com/watch?v=7ZAjwrDWoHw) · [🎞️ View the MP4 demo](assets/demo.mp4)
 
 ## ⚙️ Installation
 
@@ -48,6 +54,8 @@ CUDA_VISIBLE_DEVICES=0 python scripts/check_environment.py
 | [PALVIO](https://github.com/flysoaryun/LF-VIO#download-palvio-dataset) | PAL | `configs/PAL/LF-VIO/ID01.yaml`–`ID10.yaml` |
 
 Place prepared sequences under `datasets/` and set `Dataset.dataset_path` in the scene configuration. [Data layout & pose formats →](docs/setup.md#prepare-the-data)
+
+For dataset access and help reproducing the experiments, please contact [guoxf@zju.edu.cn](mailto:guoxf@zju.edu.cn).
 
 For ERP sequences, download the UniFuse checkpoint from [Depth Anywhere](https://github.com/albert100121/Depth-Anywhere#pretrained-weights) and place it at:
 
@@ -84,11 +92,15 @@ The full **217-frame SynPano apartment** run completed, with all-frame ATE **0.0
 ## 📚 Citation
 
 ```bibtex
-@article{guo2026cubesplat,
+@inproceedings{guo2026cubesplat,
   title={Cube-Splat: High-Fidelity 360{\textdegree} Gaussian Splatting SLAM via Cubemap Factorization and Adjoint-Consistent Optimization},
   author={Guo, Xiangfei and Shi, Hao and Zhang, Yufan and Yi, Zhonghua and Mao, Yongqi and Yin, Xiaoting and Wang, Kaiwei},
-  journal={arXiv preprint arXiv:2609.21347},
-  year={2026}
+  booktitle={Computer Vision -- ECCV 2026},
+  pages={213--231},
+  publisher={Springer},
+  year={2026},
+  doi={10.1007/978-3-032-37255-0_12},
+  url={https://link.springer.com/chapter/10.1007/978-3-032-37255-0_12}
 }
 ```
 

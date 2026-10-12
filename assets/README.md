@@ -1,10 +1,11 @@
-# Paper figures
+# Paper figures and demo
 
-`pipeline.svg` is an explicit placeholder for the paper's pipeline figure.
+| File | Content |
+| --- | --- |
+| `fig2.pipeline.jpg` | Pipeline figure from the Cube-Splat paper, displayed in the main README |
+| `demo.mp4` | Cube-Splat video demo, linked from the main README |
 
-To add the actual figure:
+The demo is also available on [YouTube](https://www.youtube.com/watch?v=7ZAjwrDWoHw).
 
-1. Replace `pipeline.svg` with your SVG export; the main README updates automatically.
-2. Or save a PNG as `assets/pipeline.png` and change the main README's image source from `assets/pipeline.svg` to `assets/pipeline.png`.
-
-A wide, tightly cropped figure works best. Keep labels readable at GitHub's normal page width. This directory is tracked by Git so figures can be published with the README.
+To update the figure or demo, replace the corresponding file. If you change a
+filename, update the references in the main README as well.
