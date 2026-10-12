@@ -20,10 +20,14 @@
 ## 🧩 Pipeline
 
 <p align="center">
-  <img src="assets/fig2.pipeline.jpg" width="100%" alt="Cube-Splat pipeline: cubemap factorization, adjoint-consistent pose tracking, and Gaussian mapping">
+  <a href="assets/fig2.pipeline.jpg"><img src="assets/fig2.pipeline.jpg" width="75%" alt="Cube-Splat pipeline: cubemap factorization, adjoint-consistent pose tracking, and Gaussian mapping"></a>
 </p>
 
 ## 🎬 Demo
+
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=7ZAjwrDWoHw"><img src="assets/demo.gif" width="100%" alt="Cube-Splat animated video demo"></a>
+</p>
 
 [▶️ Watch on YouTube](https://www.youtube.com/watch?v=7ZAjwrDWoHw) · [🎞️ View the MP4 demo](assets/demo.mp4)
 
