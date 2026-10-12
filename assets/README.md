@@ -4,7 +4,7 @@
 | --- | --- |
 | `fig2.pipeline.jpg` | Pipeline figure from the Cube-Splat paper, displayed in the main README |
 | `demo.gif` | Looping GIF of the complete demo, embedded in the main README |
-| `demo.mp4` | Cube-Splat video demo, linked from the main README |
+| `demo.mp4` | Source video used to generate the embedded GIF |
 
 The demo is also available on [YouTube](https://www.youtube.com/watch?v=7ZAjwrDWoHw).
 

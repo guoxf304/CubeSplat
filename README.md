@@ -26,10 +26,8 @@
 ## 🎬 Demo
 
 <p align="center">
-  <a href="https://www.youtube.com/watch?v=7ZAjwrDWoHw"><img src="assets/demo.gif" width="100%" alt="Cube-Splat animated video demo"></a>
+  <img src="assets/demo.gif" width="75%" alt="Cube-Splat animated video demo">
 </p>
-
-[▶️ Watch on YouTube](https://www.youtube.com/watch?v=7ZAjwrDWoHw) · [🎞️ View the MP4 demo](assets/demo.mp4)
 
 ## ⚙️ Installation
 
@@ -88,10 +86,6 @@ WANDB_MODE=disabled CUDA_VISIBLE_DEVICES=0 \
 ```
 
 Results and Gaussian PLY maps are saved under `results/`. Evaluation includes 26,000 color refinement iterations. [Options & outputs →](docs/setup.md#evaluation)
-
-## 📊 Reproduction
-
-The full **217-frame SynPano apartment** run completed, with all-frame ATE **0.0954 m** (scale aligned). Both CUDA extensions, four-face gradients, and depth inference were validated. [Environment, commands & measured results →](docs/reproduction.md)
 
 ## 📚 Citation
 
