@@ -7,7 +7,16 @@ media/
 360VO_convert/
 ATEplot/
 cubemap_render/
-depth_em/
+# Keep the depth inference runtime; exclude training experiments and weights.
+depth_em/*
+!depth_em/depth_estimator.py
+!depth_em/projection.py
+!depth_em/licenses/
+!depth_em/baseline_models/
+depth_em/baseline_models/*
+!depth_em/baseline_models/UniFuse/
+depth_em/baseline_models/UniFuse/*
+!depth_em/baseline_models/UniFuse/networks/
 ERP_convert/
 mytools/
 results/
@@ -17,6 +26,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.so
+*.o
+build/
+*.egg-info/
 .Python
 venv/
 .venv/
@@ -28,3 +40,4 @@ env/
 # Common large artifacts (adjust if you need to track weights)
 *.pt
 *.pth
+*.zip
