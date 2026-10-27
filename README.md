@@ -55,9 +55,18 @@ CUDA_VISIBLE_DEVICES=0 python scripts/check_environment.py
 | [OmniBlender](https://github.com/changwoonchoi/EgoNeRF#dataset) | ERP | `configs/ERP/OmniBlender/example_scene.yaml` |
 | [PALVIO](https://github.com/flysoaryun/LF-VIO#download-palvio-dataset) | PAL | `configs/PAL/LF-VIO/ID01.yaml`–`ID10.yaml` |
 
+**SynPano is available on [Hugging Face](https://huggingface.co/datasets/gxfzju/SynPano):** 5,206 RGB panoramas across 8 scenes (5 indoor, 3 outdoor), at 1920 × 960 resolution with camera poses. [Scene previews & release details →](https://github.com/guoxf304/SynPano-Dataset#dataset-overview)
+
+Download the default `apartment` scene directly into the configured location:
+
+```bash
+python -m pip install "huggingface_hub==0.36.0"
+hf download gxfzju/SynPano --repo-type dataset --include "apartment/**" --local-dir datasets/SynPano
+```
+
 Place prepared sequences under `datasets/` and set `Dataset.dataset_path` in the scene configuration. [Data layout & pose formats →](docs/setup.md#prepare-the-data)
 
-For dataset access and help reproducing the experiments, please contact [guoxf@zju.edu.cn](mailto:guoxf@zju.edu.cn).
+For help reproducing the experiments, please contact [guoxf@zju.edu.cn](mailto:guoxf@zju.edu.cn).
 
 For ERP sequences, download the UniFuse checkpoint from [Depth Anywhere](https://github.com/albert100121/Depth-Anywhere#pretrained-weights) and place it at:
 

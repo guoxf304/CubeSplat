@@ -97,6 +97,32 @@ The necessary inference code is included in Git; weights and training data are e
 
 ### SynPano and OmniBlender
 
+SynPano is publicly hosted at
+[gxfzju/SynPano on Hugging Face](https://huggingface.co/datasets/gxfzju/SynPano).
+The release contains 5,206 RGB panoramas across 8 scenes at 1920 × 960 resolution,
+with 5 indoor and 3 outdoor scenes. See the
+[dataset repository](https://github.com/guoxf304/SynPano-Dataset) for previews,
+per-scene file counts, and the dataset license.
+
+From the Cube-Splat repository root, download all scenes into the directory used
+by this project's configurations:
+
+```bash
+# Optional download client, compatible with the Python 3.9 environment.
+python -m pip install "huggingface_hub==0.36.0"
+hf download gxfzju/SynPano --repo-type dataset --local-dir datasets/SynPano
+```
+
+To download only the default example scene instead:
+
+```bash
+hf download gxfzju/SynPano --repo-type dataset --include "apartment/**" --local-dir datasets/SynPano
+```
+
+The download preserves the scene folders, so the default
+`Dataset.dataset_path: "datasets/SynPano/apartment/"` needs no changes. For another
+scene, update that field in `configs/ERP/SynPano/example_scene.yaml`.
+
 The current loader expects prepared images and a pose list in the following layout:
 
 ```text
@@ -123,6 +149,16 @@ An `imgs/` directory is also accepted and takes precedence over `images/`. The E
 ```
 
 The first line is a header and is skipped. Image names are relative to `images/` or `imgs/`; pose entries describe camera-to-world transforms with quaternion ordering `qx qy qz qw`. The loader converts them to world-to-camera transforms internally. Ground-truth poses are currently required by the loader and are also used for initialization and trajectory evaluation.
+
+SynPano's pose files use **9 columns**, including the image filename, and frame
+indices rather than timestamps. They match the ERP layout above; they are not
+8-column TUM trajectory files.
+
+For `island_lake`, the release has 453 images and 611 pose records. Before running
+that scene, prepare a pose list containing only rows whose `image_name` exists in
+the scene's image directory: the current Cube-Splat ERP loader visits every pose
+row. Keep the header, original filenames, and pose values. See the dataset's
+[image/pose association example](https://github.com/guoxf304/SynPano-Dataset#camera-pose-format).
 
 For a SynPano archive with `groundtruth.txt` and `images/` directly at its root:
 
