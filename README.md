@@ -55,7 +55,7 @@ CUDA_VISIBLE_DEVICES=0 python scripts/check_environment.py
 | [OmniBlender](https://github.com/changwoonchoi/EgoNeRF#dataset) | ERP | `configs/ERP/OmniBlender/example_scene.yaml` |
 | [PALVIO](https://github.com/flysoaryun/LF-VIO#download-palvio-dataset) | PAL | `configs/PAL/LF-VIO/ID01.yaml`–`ID10.yaml` |
 
-**SynPano is available on [Hugging Face](https://huggingface.co/datasets/gxfzju/SynPano):** 5,206 RGB panoramas across 8 scenes (5 indoor, 3 outdoor), at 1920 × 960 resolution with camera poses. [Scene previews & release details →](https://github.com/guoxf304/SynPano-Dataset#dataset-overview)
+**SynPano is available on [Hugging Face](https://huggingface.co/datasets/gxfzju/SynPano):** 8 scenes (5 indoor, 3 outdoor), with 1920 × 960 RGB panoramas and camera poses. [Scene previews & release details →](https://github.com/guoxf304/SynPano-Dataset#dataset-overview)
 
 Download the default `apartment` scene directly into the configured location:
 

@@ -99,7 +99,7 @@ The necessary inference code is included in Git; weights and training data are e
 
 SynPano is publicly hosted at
 [gxfzju/SynPano on Hugging Face](https://huggingface.co/datasets/gxfzju/SynPano).
-The release contains 5,206 RGB panoramas across 8 scenes at 1920 × 960 resolution,
+The dataset covers 8 scenes at 1920 × 960 resolution,
 with 5 indoor and 3 outdoor scenes. See the
 [dataset repository](https://github.com/guoxf304/SynPano-Dataset) for previews,
 per-scene file counts, and the dataset license.
@@ -154,10 +154,11 @@ SynPano's pose files use **9 columns**, including the image filename, and frame
 indices rather than timestamps. They match the ERP layout above; they are not
 8-column TUM trajectory files.
 
-For `island_lake`, the release has 453 images and 611 pose records. Before running
-that scene, prepare a pose list containing only rows whose `image_name` exists in
-the scene's image directory: the current Cube-Splat ERP loader visits every pose
-row. Keep the header, original filenames, and pose values. See the dataset's
+The complete `island_lake` sequence contains **610 image frames**. Check the
+downloaded copy for completeness before running this scene. The current
+Cube-Splat ERP loader visits every pose row, so each listed `image_name` must
+have a corresponding image file. Keep the header, original filenames, and pose
+values when preparing the sequence. See the dataset's
 [image/pose association example](https://github.com/guoxf304/SynPano-Dataset#camera-pose-format).
 
 For a SynPano archive with `groundtruth.txt` and `images/` directly at its root:
